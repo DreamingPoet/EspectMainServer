@@ -1,5 +1,7 @@
 use serde::{Serialize, Deserialize};
 
+use crate::entity::ConnectionType;
+
 // 请求的参数
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoginReq
@@ -18,4 +20,10 @@ pub struct CreateRoomReq
 pub struct CreateRoomResp
 {
 	pub RoomHost: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetConnectionTypeReq
+{
+	pub connType: ConnectionType,
 }

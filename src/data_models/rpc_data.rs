@@ -8,25 +8,30 @@ pub enum RPCMessageType {
     HeartBeat,
     Login,
     CreateRoom,
+    SetConnectionType,
     #[default]
     Unknown,
 }
+
 impl RPCMessageType {
     pub fn to_u16(&self) -> u16 {
         match self {
             RPCMessageType::HeartBeat => return 0x00,
             RPCMessageType::Login => return 0x01,
             RPCMessageType::CreateRoom => return 0x02,
-            RPCMessageType::Unknown => return 0x03,
+            RPCMessageType::SetConnectionType => return 0x03,
+            RPCMessageType::Unknown => return 0x04,
         };
     }
 }
+
 impl From<u16> for RPCMessageType {
     fn from(orig: u16) -> RPCMessageType {
         match orig {
             0x00 => return RPCMessageType::HeartBeat,
             0x01 => return RPCMessageType::Login,
             0x02 => return RPCMessageType::CreateRoom,
+            0x03 => return RPCMessageType::SetConnectionType,
             _ => return RPCMessageType::Unknown,
         };
     }
@@ -57,3 +62,4 @@ impl RPCData {
         Some(res)
     }
 }
+
