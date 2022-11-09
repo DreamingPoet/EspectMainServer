@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // 使用Frame的LengthDelimitedCodec进行编解码操作
             let codec = LengthDelimitedCodec::builder()
                 .max_frame_length(1024)
-                .length_adjustment(4)
+                .length_adjustment(LENGTH_ADJUSTMENT)
                 .length_field_length(LENGTH_FIELD_LENGTH)
                 .num_skip(0)
                 .new_codec();

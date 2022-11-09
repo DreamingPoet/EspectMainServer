@@ -1,7 +1,7 @@
 use bytes::{Buf, BytesMut};
 
 pub const LENGTH_FIELD_LENGTH: usize = 4;
-pub const LENGTH_ADJUSTMENT: isize = 8;
+pub const LENGTH_ADJUSTMENT: isize = 4;
 
 #[derive(Debug, Default)]
 pub enum RPCMessageType {
