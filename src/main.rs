@@ -2,7 +2,7 @@ mod config;
 pub use config::*;
 
 use bytes::{BufMut, Bytes, BytesMut};
-use entity::{DataOperation, ConnectionType};
+use entity::{ConnectionType, DataOperation};
 
 mod data_models;
 mod entity;
@@ -21,7 +21,7 @@ use crate::{
     ServerConfig,
 };
 
-use futures::{SinkExt, StreamExt, stream::SplitSink};
+use futures::{stream::SplitSink, SinkExt, StreamExt};
 
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -30,7 +30,7 @@ use tokio::{
 use tokio::{sync::oneshot, time::sleep};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-type FramedStreamSender = SplitSink<Framed<TcpStream, LengthDelimitedCodec>, Bytes>;
+type FramedStreamSender<'a> = SplitSink<&'a mut Framed<TcpStream, LengthDelimitedCodec>, Bytes>;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -71,52 +71,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // let _ = handle_data_channel.await.unwrap();
 }
 
-async fn handle_create_room(
-    rpc_data: &RPCData,
-    stream: &mut Framed<TcpStream, LengthDelimitedCodec>,
-) -> Result<(), Box<dyn Error>> {
-    // 1 准备返回的数据
-    let data = CreateRoomResp {
-        RoomHost: "127.0.0.1:7777".to_string(),
-    };
 
-    let data_str = serde_json::to_vec(&data)?;
-
-    // 2 开始组装数据
-    let mut buf = BytesMut::new();
-    buf.put_u16(rpc_data.MagicNum);
-    buf.put_u32(rpc_data.ReqID);
-    buf.put_u16(rpc_data.MsgType.to_u16());
-    buf.put_slice(&data_str);
-
-    println!("send data{:?}, len = {}", &buf, &buf.len());
-
-    stream.send(Bytes::from(buf)).await.unwrap();
-
-    Ok(())
-}
-
-async fn handle_connection(tx: Sender<DataOperation>, mut stream: &mut Framed<TcpStream, LengthDelimitedCodec>) -> Result<(), EspectError> {
-    let (sender, mut receiver) = stream.split();
+async fn handle_connection(
+    tx: Sender<DataOperation>,
+    mut stream: &mut Framed<TcpStream, LengthDelimitedCodec>,
+) {
+    let (mut sender, mut receiver) = stream.split();
 
     // 该连接的数据====
     let mut connect_type = ConnectionType::Unknown;
     // 该连接的数据====
 
-    while let Some(Ok(mut buf)) = receiver.next().await {
+    // let a  = sender.clone();
 
+    while let Some(Ok(mut buf)) = receiver.next().await {
         // 区分是UEServer 还是 Player，或者是还是第一次连接
         match connect_type {
-            ConnectionType::UEServer => {handle_ue_server(&mut buf).await?},
-            ConnectionType::Player => {handle_player(&mut buf).await?},
+            ConnectionType::UEServer => if let Ok(_) = handle_ue_server(&mut buf).await {},
+            ConnectionType::Player => if let Ok(_) = handle_player(&mut buf, &mut sender).await {},
             ConnectionType::Unknown => {
-                if let Ok(_) = handle_unknow(&mut connect_type, &mut buf).await {
-                    
-                }
-            },
+                if let Ok(_) = handle_unknow(&mut connect_type, &mut buf,  &mut sender).await {}
+            }
         }
     }
-
-    Ok(())
-
 }

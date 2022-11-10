@@ -5,22 +5,26 @@ pub const LENGTH_ADJUSTMENT: isize = 4;
 
 #[derive(Debug, Default)]
 pub enum RPCMessageType {
+    #[default]
+    Unknown,
     HeartBeat,
     Login,
     CreateRoom,
     SetConnectionType,
-    #[default]
-    Unknown,
+    SetPlayerInfo,
+	SetUEServerInfo,
 }
 
 impl RPCMessageType {
     pub fn to_u16(&self) -> u16 {
         match self {
-            RPCMessageType::HeartBeat => return 0x00,
-            RPCMessageType::Login => return 0x01,
-            RPCMessageType::CreateRoom => return 0x02,
-            RPCMessageType::SetConnectionType => return 0x03,
-            RPCMessageType::Unknown => return 0x04,
+            RPCMessageType::Unknown => return 0x00,
+            RPCMessageType::HeartBeat => return 0x01,
+            RPCMessageType::Login => return 0x02,
+            RPCMessageType::CreateRoom => return 0x03,
+            RPCMessageType::SetConnectionType => return 0x04,
+            RPCMessageType::SetPlayerInfo => return 0x05,
+            RPCMessageType::SetUEServerInfo => return 0x06,
         };
     }
 }
@@ -28,10 +32,12 @@ impl RPCMessageType {
 impl From<u16> for RPCMessageType {
     fn from(orig: u16) -> RPCMessageType {
         match orig {
-            0x00 => return RPCMessageType::HeartBeat,
-            0x01 => return RPCMessageType::Login,
-            0x02 => return RPCMessageType::CreateRoom,
-            0x03 => return RPCMessageType::SetConnectionType,
+            0x01 => return RPCMessageType::HeartBeat,
+            0x02 => return RPCMessageType::Login,
+            0x03 => return RPCMessageType::CreateRoom,
+            0x04 => return RPCMessageType::SetConnectionType,
+            0x05 => return RPCMessageType::SetPlayerInfo,
+            0x06 => return RPCMessageType::SetUEServerInfo,
             _ => return RPCMessageType::Unknown,
         };
     }

@@ -1,4 +1,5 @@
-use bytes::BytesMut;
+use bytes::{BytesMut, Bytes, BufMut};
+use futures::SinkExt;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use std::error::Error;
@@ -57,9 +58,9 @@ pub enum DataOperation {
     // 检查连接是什么类型
     check_type {
         // 传参
-        stream: FramedStreamSender,
+        // stream: FramedStreamSender,
         // 返回值类型
-        resp: Responder<Option<ConnectionType>>,
+        // resp: Responder<Option<ConnectionType>>,
     },
 }
 
@@ -77,20 +78,29 @@ pub async fn handle_data_channel(mut rx: Receiver<DataOperation>) -> Option<()> 
     loop {}
 }
 
-pub async fn handle_unknow(conn_type: &mut ConnectionType, buf: &mut BytesMut) -> Result<(), EspectError>{
-    println!("Receive a msg:len = {}, content = {:?}", buf.len(), buf);
+pub async fn handle_unknow(conn_type: &mut ConnectionType, buf: &mut BytesMut, sender: &mut FramedStreamSender<'_> ) -> Result<(), EspectError>{
+    println!("handle_unknow: msg:len = {}, content = {:?}", buf.len(), buf);
     if let Some(rpc_data) = RPCData::from(buf) {
         match rpc_data.MsgType {
             RPCMessageType::SetConnectionType => {
-                let a = SetConnectionTypeReq{ connType: ConnectionType::UEServer };
-                let data_str  = serde_json::to_string(&a)?;
-
-                println!("data_str.connectionType = {:?}", data_str);
-
                 let data_str: SetConnectionTypeReq  = serde_json::from_slice(&rpc_data.Data)?;
+                println!("data_str.connectionType = {:?}", &data_str.connType);
+                *conn_type = data_str.connType;
 
-                println!("data_str.connectionType = {:?}", data_str.connType);
 
+                // 1 准备返回的数据
+                let s = String::from("{}");
+                let bytes = s.into_bytes();
+
+                // 2 开始组装数据
+                let mut buf = BytesMut::new();
+                buf.put_u16(rpc_data.MagicNum);
+                buf.put_u32(rpc_data.ReqID);
+                buf.put_u16(rpc_data.MsgType.to_u16());
+                buf.put_slice(&bytes);
+
+                println!("send data{:?}, len = {}", &buf, &buf.len());
+                let _ = sender.send(Bytes::from(buf)).await;
             },
             _ => {},
         };
