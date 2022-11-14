@@ -15,36 +15,27 @@ use super::{DataManager, Peer};
 use std::error::Error;
 
 pub struct Player {
+    pub peer: Peer,
     account: String,
-
-    // socket stream
-    stream: FramedStream,
-
-    /// Receive half of the message channel.
-    rx: Rx,
 }
 
 impl Player {
     /// Create a new instance of `Peer`.
-    pub async fn new(state: Arc<Mutex<DataManager>>, stream: FramedStream) -> io::Result<Player> {
+    pub async fn new(state: Arc<Mutex<DataManager>>, peer: Peer) -> io::Result<Player> {
         // Get the client socket address
-        let addr = stream.get_ref().peer_addr()?;
-
-        // Create a channel for this peer
-        let (tx, rx) = mpsc::unbounded_channel();
+        let addr = peer.stream.get_ref().peer_addr()?;
 
         // Add an entry for this `Peer` in the shared state map.
-        state.lock().await.players.insert(addr, tx);
+        state.lock().await.players.insert(addr, peer.tx.clone());
 
         Ok(Player {
+            peer,
             account: "".to_string(),
-            stream,
-            rx,
         })
     }
-}
 
-pub async fn handle_player(buf: &mut BytesMut, peer: &mut Peer) -> Result<(), Box<dyn Error>> {
+
+pub async fn handle_player(&mut self, buf: &mut BytesMut) -> Result<(), Box<dyn Error>> {
     println!(
         "handle_player: msg:len = {}, content = {:?}",
         buf.len(),
@@ -152,4 +143,6 @@ async fn handle_create_room(rpc_data: &RPCData) -> Result<(), Box<dyn Error>> {
     // stream.send(Bytes::from(buf)).await.unwrap();
 
     Ok(())
+}
+
 }

@@ -12,8 +12,8 @@ pub use errors::*;
 use tokio::sync::Mutex;
 
 use std::sync::Arc;
-use std::{error::Error, net::SocketAddr};
 use std::time::Duration;
+use std::{error::Error, net::SocketAddr};
 
 use crate::data_models::SetConnectionTypeReq;
 use crate::{
@@ -38,11 +38,10 @@ type FramedStreamSender<'a> = SplitSink<&'a mut Framed<TcpStream, LengthDelimite
 type FramedStream = Framed<TcpStream, LengthDelimitedCodec>;
 
 /// Shorthand for the transmit half of the message channel.
-type Tx = mpsc::UnboundedSender<String>;
+type Tx = mpsc::UnboundedSender<BytesMut>;
 
 /// Shorthand for the receive half of the message channel.
-type Rx = mpsc::UnboundedReceiver<String>;
-
+type Rx = mpsc::UnboundedReceiver<BytesMut>;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -92,79 +91,150 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // let _ = handle_data_channel.await.unwrap();
 }
 
-
 async fn handle_connection(
     state: Arc<Mutex<DataManager>>,
     mut stream: FramedStream,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn Error>> {
-
-    // Register our peer with state which internally sets up some channels.
-    let mut peer = Peer::new(state.clone(), stream).await?;
-        
-    // 该连接的数据====
-    let mut connect_type = ConnectionType::Unknown;
-    // 该连接的数据====
-
-    loop {
-
-        tokio::select! {
-
-            // A message was received from a peer. Send it to the current user.
-            // Some(msg) = peer.rx.recv() => {
-            //     peer.lines.send(&msg).await?;
-            // }
-
-            result = peer.stream.next() => match result {
-                Some(Ok(mut buf)) => {
-
-                // 区分是UEServer 还是 Player，或者是还是第一次连接
-                match connect_type {
-                    ConnectionType::UEServer =>{
-                        //if let Ok(_) = handle_ue_server(&mut buf).await {},
-
-                    } 
-                    ConnectionType::Player =>{
-
-                        if let Ok(_) = handle_player(&mut buf, &mut peer).await {}
-
+    // Read the first request from the stream to get the connection type.
+    let (rpc_data, connection_type) = match stream.next().await {
+        Some(Ok(mut buf)) => {
+            let mut temp_rpc_data = RPCData::default();
+            let mut temp_connenction_type = ConnectionType::Unknown;
+            if let Some(rpc_data) = RPCData::from(&mut buf) {
+                match rpc_data.MsgType {
+                    RPCMessageType::SetConnectionType => {
+                        let data: SetConnectionTypeReq = serde_json::from_slice(&rpc_data.Data)?;
+                        println!("data_str.connectionType = {:?}", &data.connType);
+                        temp_rpc_data = rpc_data;
+                        temp_connenction_type = data.connType;
                     }
-                    ConnectionType::Unknown => {
-                        if let Ok(_) = handle_unknow(&mut connect_type, &mut buf, &mut peer).await {}
-                    }
-                }
-
-
-                    // let mut state = state.lock().await;
-                }
-                // An error occurred.
-                Some(Err(e)) => {
-                    println!(
-                        "an error occurred while processing messages for ; error = {:?}",
-                        e
-                    );
-                }
-                // The stream has been exhausted.
-                None => break,
-            },
+                    _ => {}
+                };
+            }
+            (temp_rpc_data, temp_connenction_type)
         }
+        // We didn't get a line so we return early here.
+        _ => {
+            println!(
+                "Failed to get ConnectionType from {}. Client disconnected.",
+                addr
+            );
+            return Ok(());
+        }
+    };
 
+    match connection_type {
+        ConnectionType::UEServer => {
+            // 响应设置连接类型的请求
+            let s = String::from("{}");
+            let bytes = s.into_bytes();
+            let mut buf = BytesMut::new();
+            buf.put_u16(rpc_data.MagicNum);
+            buf.put_u32(rpc_data.ReqID);
+            buf.put_u16(rpc_data.MsgType.to_u16());
+            buf.put_slice(&bytes);
+            println!("send data{:?}, len = {}", &buf, &buf.len());
+            let _ = stream.send(Bytes::from(buf)).await;
+
+            let peer = Peer::new(stream)?;
+            let mut ue_server = UEServer::new(state.clone(), peer).await?;
+
+            loop {
+                tokio::select! {
+
+                    // A message was received from a peer. Send it to the current user.
+                    Some(msg) = ue_server.peer.rx.recv() => {
+                        ue_server.peer.stream.send(Bytes::from(msg)).await?;
+                    }
+
+                    result = ue_server.peer.stream.next() => match result {
+                        Some(Ok(mut buf)) => {
+
+                            if let Ok(_) = ue_server.handle_ue_server(&mut buf).await {}
+
+                        }
+                        // An error occurred.
+                        Some(Err(e)) => {
+                            println!(
+                                "an error occurred while processing messages for ; error = {:?}",
+                                e
+                            );
+                        }
+                        // The stream has been exhausted.
+                        None => break,
+                    },
+                }
+            }
+        }
+        ConnectionType::Player => {
+            // 响应设置连接类型的请求
+            let s = String::from("{}");
+            let bytes = s.into_bytes();
+            let mut buf = BytesMut::new();
+            buf.put_u16(rpc_data.MagicNum);
+            buf.put_u32(rpc_data.ReqID);
+            buf.put_u16(rpc_data.MsgType.to_u16());
+            buf.put_slice(&bytes);
+            println!("send data{:?}, len = {}", &buf, &buf.len());
+            let _ = stream.send(Bytes::from(buf)).await;
+
+            let peer = Peer::new(stream)?;
+            let mut player = Player::new(state.clone(), peer).await?;
+
+            loop {
+                tokio::select! {
+
+                    // A message was received from a peer. Send it to the current user.
+                    Some(msg) = player.peer.rx.recv() => {
+                        player.peer.stream.send(Bytes::from(msg)).await?;
+                    }
+
+                    result = player.peer.stream.next() => match result {
+                        Some(Ok(mut buf)) => {
+                            if let Ok(_) = player.handle_player(&mut buf).await {}
+                        }
+                        // An error occurred.
+                        Some(Err(e)) => {
+                            println!(
+                                "an error occurred while processing messages for ; error = {:?}",
+                                e
+                            );
+                        }
+                        // The stream has been exhausted.
+                        None => break,
+                    },
+                }
+            }
+        }
+        ConnectionType::Unknown => {
+            println!(
+                "Get ConnectionType Unknown from {}. Client disconnected.",
+                addr
+            );
+            return Ok(());
+        }
     }
-
 
     Ok(())
 }
 
-
-async fn handle_unknow(conn_type: &mut ConnectionType, buf: &mut BytesMut, peer: &mut Peer ) -> Result<(), Box<dyn Error>> {
-    println!("handle_unknow: msg:len = {}, content = {:?}", buf.len(), buf);
+async fn handle_unknow(
+    conn_type: &mut ConnectionType,
+    buf: &mut BytesMut,
+    peer: &mut Peer,
+) -> Result<(), Box<dyn Error>> {
+    println!(
+        "handle_unknow: msg:len = {}, content = {:?}",
+        buf.len(),
+        buf
+    );
     if let Some(rpc_data) = RPCData::from(buf) {
         match rpc_data.MsgType {
             RPCMessageType::SetConnectionType => {
-                let data_str: SetConnectionTypeReq  = serde_json::from_slice(&rpc_data.Data)?;
+                let data_str: SetConnectionTypeReq = serde_json::from_slice(&rpc_data.Data)?;
                 println!("data_str.connectionType = {:?}", &data_str.connType);
                 *conn_type = data_str.connType;
-
 
                 // 1 准备返回的数据
                 let s = String::from("{}");
@@ -179,8 +249,8 @@ async fn handle_unknow(conn_type: &mut ConnectionType, buf: &mut BytesMut, peer:
 
                 println!("send data{:?}, len = {}", &buf, &buf.len());
                 let _ = peer.stream.send(Bytes::from(buf)).await;
-            },
-            _ => {},
+            }
+            _ => {}
         };
     }
 

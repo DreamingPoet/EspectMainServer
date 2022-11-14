@@ -104,25 +104,20 @@ pub async fn handle_data_channel(mut rx: Receiver<DataOperation>) -> Option<()> 
 
 pub struct Peer {
     pub stream: FramedStream,
-    rx: Rx,
+    pub rx: Rx,
+    pub tx: Tx,
 }
 
 impl Peer {
     /// Create a new instance of `Peer`.
-    pub async fn new(
-        state: Arc<Mutex<DataManager>>,
+    pub fn new(
         stream: FramedStream,
     ) -> io::Result<Peer> {
         // Get the client socket address
         let addr = stream.get_ref().peer_addr()?;
-
         // Create a channel for this peer
         let (tx, rx) = mpsc::unbounded_channel();
-
-        // Add an entry for this `Peer` in the shared state map.
-        // state.lock().await.peers.insert(addr, tx);
-
-        Ok(Peer { stream, rx })
+        Ok(Peer { stream, rx , tx})
     }
 }
 
