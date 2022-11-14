@@ -1,10 +1,17 @@
 use bytes::BytesMut;
 
-use crate::{EspectError, data_models::{RPCMessageType, RPCData}};
+use crate::{EspectError, data_models::{RPCMessageType, RPCData}, FramedStream, Rx};
 
 use super::Player;
 
 pub struct UEServer {
+
+    // socket stream
+    stream: FramedStream,
+
+    /// Receive half of the message channel.
+    rx: Rx,
+
     // 服务器房间端口
     room_host: String,
 
@@ -15,6 +22,7 @@ pub struct UEServer {
     creater_id: String,
 
     creater: Player,
+    
 }
 
 

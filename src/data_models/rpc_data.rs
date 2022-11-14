@@ -3,7 +3,7 @@ use bytes::{Buf, BytesMut};
 pub const LENGTH_FIELD_LENGTH: usize = 4;
 pub const LENGTH_ADJUSTMENT: isize = 4;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub enum RPCMessageType {
     #[default]
     Unknown,
@@ -53,6 +53,7 @@ pub struct RPCData {
 }
 
 impl RPCData {
+    // 读取信息，需要修改BytesMut
     pub fn from(src: &mut BytesMut) -> Option<Self> {
         if src.len() < LENGTH_FIELD_LENGTH {
             return None;

@@ -1,18 +1,40 @@
 use bytes::{BytesMut, Bytes, BufMut};
 use futures::SinkExt;
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
+use std::io;
+use std::sync::Arc;
+use std::{collections::HashMap, net::SocketAddr};
 use std::error::Error;
 use tokio::sync::{mpsc::Receiver, oneshot};
 
+use crate::{Tx, Rx, FramedStream};
 use crate::{
     data_models::{RPCData, RPCMessageType, SetConnectionTypeReq},
     FramedStreamSender, EspectError,
 };
 
 use super::{Player, UEServer};
+use tokio::sync::{mpsc, Mutex};
 
-struct DataManager {}
+// All Shared Datas
+pub struct DataManager {
+
+    pub players: HashMap<SocketAddr, Tx>,
+    pub ue_servers: HashMap<SocketAddr, Tx>,
+
+}
+
+
+impl DataManager {
+    /// Create a new, empty, instance of `Shared`.
+    pub fn new() -> Self {
+        DataManager {
+            players: HashMap::new(),
+            ue_servers: HashMap::new(),
+        }
+    }
+    
+}
 
 // 连接上来的客户端的类型
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,33 +100,30 @@ pub async fn handle_data_channel(mut rx: Receiver<DataOperation>) -> Option<()> 
     loop {}
 }
 
-pub async fn handle_unknow(conn_type: &mut ConnectionType, buf: &mut BytesMut, sender: &mut FramedStreamSender<'_> ) -> Result<(), EspectError>{
-    println!("handle_unknow: msg:len = {}, content = {:?}", buf.len(), buf);
-    if let Some(rpc_data) = RPCData::from(buf) {
-        match rpc_data.MsgType {
-            RPCMessageType::SetConnectionType => {
-                let data_str: SetConnectionTypeReq  = serde_json::from_slice(&rpc_data.Data)?;
-                println!("data_str.connectionType = {:?}", &data_str.connType);
-                *conn_type = data_str.connType;
+// ====================================== Peer Start ======================
 
-
-                // 1 准备返回的数据
-                let s = String::from("{}");
-                let bytes = s.into_bytes();
-
-                // 2 开始组装数据
-                let mut buf = BytesMut::new();
-                buf.put_u16(rpc_data.MagicNum);
-                buf.put_u32(rpc_data.ReqID);
-                buf.put_u16(rpc_data.MsgType.to_u16());
-                buf.put_slice(&bytes);
-
-                println!("send data{:?}, len = {}", &buf, &buf.len());
-                let _ = sender.send(Bytes::from(buf)).await;
-            },
-            _ => {},
-        };
-    }
-
-    Ok(())
+pub struct Peer {
+    pub stream: FramedStream,
+    rx: Rx,
 }
+
+impl Peer {
+    /// Create a new instance of `Peer`.
+    pub async fn new(
+        state: Arc<Mutex<DataManager>>,
+        stream: FramedStream,
+    ) -> io::Result<Peer> {
+        // Get the client socket address
+        let addr = stream.get_ref().peer_addr()?;
+
+        // Create a channel for this peer
+        let (tx, rx) = mpsc::unbounded_channel();
+
+        // Add an entry for this `Peer` in the shared state map.
+        // state.lock().await.peers.insert(addr, tx);
+
+        Ok(Peer { stream, rx })
+    }
+}
+
+// ====================================== Peer End ======================
