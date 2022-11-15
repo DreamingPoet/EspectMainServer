@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub listen_address: ListenAddress,
+    pub ue_server_path: UEServerPath,
 }
 
 // 监听地址
@@ -14,6 +15,13 @@ pub struct ServerConfig {
 pub struct ListenAddress {
     pub addr: String,
 }
+
+// 监听地址
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UEServerPath {
+    pub path: String,
+}
+
 
 impl ServerConfig {
     // 加载Server端配置文件

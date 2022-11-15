@@ -1,3 +1,4 @@
+use std::process::Command;
 use std::{sync::Arc, time::Duration};
 
 use bytes::{BufMut, Bytes, BytesMut};
@@ -6,6 +7,7 @@ use std::io;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 
+use crate::config::ServerConfig;
 use crate::data_models::{CreateRoomResp, RPCDataLite, SetPlayerInfoReq};
 use crate::Tx;
 use crate::{
@@ -34,7 +36,6 @@ impl Player {
             account: "".to_string(),
             data_manager: state.clone(),
         };
-
 
         Ok(player)
     }
@@ -65,7 +66,11 @@ impl Player {
                     self.account = data.account;
 
                     // 添加玩家
-                    self.data_manager.lock().await.players.insert(self.account.clone(), self.clone());
+                    self.data_manager
+                        .lock()
+                        .await
+                        .players
+                        .insert(self.account.clone(), self.clone());
                 }
                 _ => {}
             }
@@ -94,6 +99,11 @@ impl Player {
         if rpc_data.MsgType == RPCMessageType::CreateRoom {
             let mut a = 0;
             let mut room_host = "".to_string();
+
+            let server_conf = ServerConfig::load("conf/config.toml").unwrap();
+
+            start_ue_server(&server_conf.ue_server_path.path, &account).await;
+
             loop {
                 sleep(Duration::from_millis(500)).await;
                 println!("handle_create_room ... ... ");
@@ -123,4 +133,12 @@ impl Player {
             }
         }
     }
+}
+
+async fn start_ue_server(path: &str, createraccount: &str) {
+    let arg1 = "?createraccount=".to_string() + &createraccount;
+    let _ = Command::new(path)
+    .arg("-log")
+    .arg(&arg1)
+    .spawn();
 }

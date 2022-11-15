@@ -1,3 +1,6 @@
 
 [listen_address]
 addr = '127.0.0.1:8090'
+
+[ue_server_path]
+path = "E:/CloudWorkSpace/Espect2/Espect_UE/WindowsNoEditor/ESpect/Binaries/Win64/ESpectServer.exe"
