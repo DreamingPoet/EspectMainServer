@@ -1,20 +1,24 @@
 use bytes::BytesMut;
-use std::{sync::Arc, time::Duration, io};
-use crate::{EspectError, data_models::{RPCMessageType, RPCData}, FramedStream, Rx};
+use std::{sync::Arc, time::Duration, io, net::SocketAddr};
+use crate::{EspectError, data_models::{RPCMessageType, RPCData, SetUEServerInfoReq}, FramedStream, Rx, Tx};
 
 use super::{Player, Peer, DataManager};
 use tokio::sync::{mpsc, Mutex};
+
+#[derive(Debug, Clone)]
 pub struct UEServer {
-    pub peer: Peer,
+    pub tx: Tx,
+    pub addr: SocketAddr,
+    pub data_manager : Arc<Mutex<DataManager>>,
 
     // 服务器房间端口
-    room_host: String,
+    pub room_port: i32,
 
-    // 课件ID
-    lesson_id: String,
+    // 课件名称
+    pub lesson_name: String,
 
-    // 房间创建者ID
-    creater_id: String,
+    // 房间创建者账号
+    pub creater_account: String,
 
     // creater: Player,
     
@@ -22,21 +26,22 @@ pub struct UEServer {
 
 impl UEServer {
     /// Create a new instance of `Peer`.
-    pub async fn new(state: Arc<Mutex<DataManager>>, peer: Peer) -> io::Result<UEServer> {
+    pub async fn new(state: Arc<Mutex<DataManager>>, peer: & Peer, tx:Tx) -> io::Result<UEServer> {
         // Get the client socket address
         let addr = peer.stream.get_ref().peer_addr()?;
-
-        // Add an entry for this `Peer` in the shared state map.
-        state.lock().await.ue_servers.insert(addr, peer.tx.clone());
-
-        Ok(UEServer {
-            peer,
-            room_host: "".to_string(),
-            lesson_id: "".to_string(),
-            creater_id: "".to_string(),
+        let ue_server = UEServer {
+            tx:tx,
+            addr:addr,
+            data_manager:state.clone(),
+            room_port: 0,
+            lesson_name: "".to_string(),
+            creater_account: "".to_string(),
             // creater: ,
             
-        })
+        };
+
+        state.lock().await.ue_servers.insert(addr, ue_server.clone());
+        Ok(ue_server)
     }
 
 
@@ -46,12 +51,16 @@ pub async fn handle_ue_server(&mut self, buf: &mut BytesMut)  -> Result<(), Espe
     if let Some(rpc_data) = RPCData::from(buf) {
         match rpc_data.MsgType {
             RPCMessageType::HeartBeat => {},
-            RPCMessageType::Login => {},
-            RPCMessageType::CreateRoom => {
-                // let _ = handle_create_room(&rpc_data, &mut stream).await;
-            },
             RPCMessageType::SetUEServerInfo => {
-                // let _ = handle_create_room(&rpc_data, &mut stream).await;
+                let data: SetUEServerInfoReq = serde_json::from_slice(&rpc_data.Data)?;
+                self.creater_account = data.creater_account;
+                self.room_port = data.room_port;
+
+                // 更新数据
+                let mut data_manager = self.data_manager.lock().await;
+                data_manager.ue_servers.insert(self.addr, self.clone());
+
+
             },
             _ => todo!(),
         }

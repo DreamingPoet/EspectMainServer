@@ -27,3 +27,18 @@ pub struct SetConnectionTypeReq
 {
 	pub connType: ConnectionType,
 }
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetUEServerInfoReq
+{
+	pub creater_account: String,
+	pub room_port: i32,
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetPlayerInfoReq
+{
+	pub account: String,
+}

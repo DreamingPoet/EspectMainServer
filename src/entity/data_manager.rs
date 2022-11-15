@@ -17,10 +17,12 @@ use super::{Player, UEServer};
 use tokio::sync::{mpsc, Mutex};
 
 // All Shared Datas
+
+#[derive(Debug, Clone)]
 pub struct DataManager {
 
-    pub players: HashMap<SocketAddr, Tx>,
-    pub ue_servers: HashMap<SocketAddr, Tx>,
+    pub players: HashMap<SocketAddr, Player>,
+    pub ue_servers: HashMap<SocketAddr, UEServer>,
 
 }
 
@@ -34,6 +36,15 @@ impl DataManager {
         }
     }
     
+    pub fn find_server_by_creater_account(&mut self, account: &str) -> String {
+        let mut host = "".to_string();
+        for server in self.ue_servers.iter() {
+            if server.1.creater_account == account.to_string() {
+                host = server.1.addr.ip().to_string() + ":" + &server.1.room_port.to_string();
+            }
+        }
+        host
+    }
 }
 
 // 连接上来的客户端的类型
@@ -105,19 +116,18 @@ pub async fn handle_data_channel(mut rx: Receiver<DataOperation>) -> Option<()> 
 pub struct Peer {
     pub stream: FramedStream,
     pub rx: Rx,
-    pub tx: Tx,
 }
 
 impl Peer {
     /// Create a new instance of `Peer`.
     pub fn new(
         stream: FramedStream,
-    ) -> io::Result<Peer> {
+    ) -> io::Result<(Peer,Tx)> {
         // Get the client socket address
         let addr = stream.get_ref().peer_addr()?;
         // Create a channel for this peer
         let (tx, rx) = mpsc::unbounded_channel();
-        Ok(Peer { stream, rx , tx})
+        Ok((Peer { stream, rx }, tx))
     }
 }
 

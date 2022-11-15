@@ -137,18 +137,18 @@ async fn handle_connection(
             println!("send data{:?}, len = {}", &buf, &buf.len());
             let _ = stream.send(Bytes::from(buf)).await;
 
-            let peer = Peer::new(stream)?;
-            let mut ue_server = UEServer::new(state.clone(), peer).await?;
+            let (mut peer, tx) = Peer::new(stream)?;
+            let mut ue_server = UEServer::new(state.clone(), &peer, tx).await?;
 
             loop {
                 tokio::select! {
 
                     // A message was received from a peer. Send it to the current user.
-                    Some(msg) = ue_server.peer.rx.recv() => {
-                        ue_server.peer.stream.send(Bytes::from(msg)).await?;
+                    Some(msg) = peer.rx.recv() => {
+                        peer.stream.send(Bytes::from(msg)).await?;
                     }
 
-                    result = ue_server.peer.stream.next() => match result {
+                    result = peer.stream.next() => match result {
                         Some(Ok(mut buf)) => {
 
                             if let Ok(_) = ue_server.handle_ue_server(&mut buf).await {}
@@ -179,18 +179,18 @@ async fn handle_connection(
             println!("send data{:?}, len = {}", &buf, &buf.len());
             let _ = stream.send(Bytes::from(buf)).await;
 
-            let peer = Peer::new(stream)?;
-            let mut player = Player::new(state.clone(), peer).await?;
+            let (mut peer, tx) = Peer::new(stream)?;
+            let mut player = Player::new(state.clone(), &peer,tx).await?;
 
             loop {
                 tokio::select! {
 
                     // A message was received from a peer. Send it to the current user.
-                    Some(msg) = player.peer.rx.recv() => {
-                        player.peer.stream.send(Bytes::from(msg)).await?;
+                    Some(msg) = peer.rx.recv() => {
+                        peer.stream.send(Bytes::from(msg)).await?;
                     }
 
-                    result = player.peer.stream.next() => match result {
+                    result = peer.stream.next() => match result {
                         Some(Ok(mut buf)) => {
                             if let Ok(_) = player.handle_player(&mut buf).await {}
                         }
