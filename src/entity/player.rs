@@ -1,11 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
-use bytes::BytesMut;
+use bytes::{BytesMut, BufMut, Bytes};
 use futures::SinkExt;
 use std::io;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 
+use crate::Tx;
+use crate::data_models::{CreateRoomResp, RPCDataLite};
 use crate::{
     data_models::{RPCData, RPCMessageType},
     FramedStream, FramedStreamSender, Rx,
@@ -20,6 +22,7 @@ pub struct Player {
 }
 
 impl Player {
+
     /// Create a new instance of `Peer`.
     pub async fn new(state: Arc<Mutex<DataManager>>, peer: Peer) -> io::Result<Player> {
         // Get the client socket address
@@ -49,26 +52,14 @@ pub async fn handle_player(&mut self, buf: &mut BytesMut) -> Result<(), Box<dyn 
             RPCMessageType::HeartBeat => {}
             RPCMessageType::Login => {
                 let res = tokio::spawn(async move{
-                    let mut a = 0;
-                    loop {
-                        sleep(Duration::from_millis(1000)).await;
-                        println!("handle_login ... ... {}", a);
-                        a += 1;
-                        if a == 10 {
-                            return a;
-                        }
-                    }
+
                 });
 
      
             }
             RPCMessageType::CreateRoom => {
                 // let _ = handle_create_room(&rpc_data, &mut stream).await;
-                tokio::spawn(async move{
-
-                        println!("handle_create_room ... ... ")
-
-                });
+                tokio::spawn(Self::handle_create_room(rpc_data.into(), self.peer.tx.clone()));
             }
             RPCMessageType::SetPlayerInfo => {
                 // let _ = handle_create_room(&rpc_data, &mut stream).await;
@@ -116,33 +107,41 @@ async fn handle_login(rpc_data: &RPCData) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn handle_create_room(rpc_data: &RPCData) -> Result<(), Box<dyn Error>> {
+async fn handle_create_room(rpc_data: RPCDataLite, tx:Tx){
     if rpc_data.MsgType == RPCMessageType::CreateRoom {
+        let mut a = 0;
         loop {
             sleep(Duration::from_millis(1000)).await;
-            println!("handle_create_room ... ... ")
+            println!("handle_create_room ... ... ");
+            a += 1;
+            if a > 9 {
+
+
+                // 1 准备返回的数据
+                let data = CreateRoomResp {
+                    RoomHost: "127.0.0.1:7777".to_string(),
+                };
+
+                if let Ok(data_str) = serde_json::to_vec(&data) {
+
+                    // 2 开始组装数据
+                    let mut buf = BytesMut::new();
+                    buf.put_u16(rpc_data.MagicNum);
+                    buf.put_u32(rpc_data.ReqID);
+                    buf.put_u16(rpc_data.MsgType.to_u16());
+                    buf.put_slice(&data_str);
+
+                    println!("send data{:?}, len = {}", &buf, &buf.len());
+
+                    tx.send(buf).unwrap();
+                }
+                
+
+                return ;
+            }
         }
     }
 
-    // // 1 准备返回的数据
-    // let data = CreateRoomResp {
-    //     RoomHost: "127.0.0.1:7777".to_string(),
-    // };
-
-    // let data_str = serde_json::to_vec(&data)?;
-
-    // // 2 开始组装数据
-    // let mut buf = BytesMut::new();
-    // buf.put_u16(rpc_data.MagicNum);
-    // buf.put_u32(rpc_data.ReqID);
-    // buf.put_u16(rpc_data.MsgType.to_u16());
-    // buf.put_slice(&data_str);
-
-    // println!("send data{:?}, len = {}", &buf, &buf.len());
-
-    // stream.send(Bytes::from(buf)).await.unwrap();
-
-    Ok(())
 }
 
 }

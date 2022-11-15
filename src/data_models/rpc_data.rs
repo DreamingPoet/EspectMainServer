@@ -3,7 +3,7 @@ use bytes::{Buf, BytesMut};
 pub const LENGTH_FIELD_LENGTH: usize = 4;
 pub const LENGTH_ADJUSTMENT: isize = 4;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub enum RPCMessageType {
     #[default]
     Unknown,
@@ -12,7 +12,7 @@ pub enum RPCMessageType {
     CreateRoom,
     SetConnectionType,
     SetPlayerInfo,
-	SetUEServerInfo,
+    SetUEServerInfo,
 }
 
 impl RPCMessageType {
@@ -45,11 +45,11 @@ impl From<u16> for RPCMessageType {
 
 #[derive(Debug, Default)]
 pub struct RPCData {
-    Len: u32,          // 消息的长度
-    pub MagicNum: u16, //魔数,用于快速确定 是不是一个我们需要的包 0x0E0C = 3596
-    pub ReqID: u32,    // 本地请求序号
+    Len: u32,                    // 消息的长度
+    pub MagicNum: u16,           //魔数,用于快速确定 是不是一个我们需要的包 0x0E0C = 3596
+    pub ReqID: u32,              // 本地请求序号
     pub MsgType: RPCMessageType, // 消息类型
-    pub Data: Vec<u8>, // Json Bytes
+    pub Data: Vec<u8>,           // Json Bytes
 }
 
 impl RPCData {
@@ -70,3 +70,18 @@ impl RPCData {
     }
 }
 
+pub struct RPCDataLite {                  // 消息的长度
+    pub MagicNum: u16,           //魔数,用于快速确定 是不是一个我们需要的包 0x0E0C = 3596
+    pub ReqID: u32,              // 本地请求序号
+    pub MsgType: RPCMessageType, // 消息类型
+}
+
+impl From<RPCData> for RPCDataLite {
+    fn from(src: RPCData) -> Self {
+        RPCDataLite {
+            MagicNum: src.MagicNum,
+            ReqID: src.ReqID,
+            MsgType: src.MsgType,
+        }
+    }
+}
