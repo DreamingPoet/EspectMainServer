@@ -21,7 +21,7 @@ use tokio::sync::{mpsc, Mutex};
 #[derive(Debug, Clone)]
 pub struct DataManager {
 
-    pub players: HashMap<SocketAddr, Player>,
+    pub players: HashMap<String, Player>,
     pub ue_servers: HashMap<SocketAddr, UEServer>,
 
 }
@@ -130,5 +130,6 @@ impl Peer {
         Ok((Peer { stream, rx }, tx))
     }
 }
+
 
 // ====================================== Peer End ======================

@@ -166,6 +166,9 @@ async fn handle_connection(
                     },
                 }
             }
+            // 清理数据
+            state.lock().await.ue_servers.remove(&ue_server.addr);
+
         }
         ConnectionType::Player => {
             // 响应设置连接类型的请求
@@ -206,6 +209,9 @@ async fn handle_connection(
                     },
                 }
             }
+
+            // 清理数据
+            state.lock().await.players.remove(&player.account);
         }
         ConnectionType::Unknown => {
             println!(

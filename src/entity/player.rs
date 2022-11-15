@@ -19,7 +19,7 @@ use std::error::Error;
 #[derive(Debug, Clone)]
 pub struct Player {
     tx: Tx,
-    account: String,
+    pub account: String,
     data_manager: Arc<Mutex<DataManager>>,
 }
 
@@ -35,7 +35,7 @@ impl Player {
             data_manager: state.clone(),
         };
 
-        state.lock().await.players.insert(addr, player.clone());
+
         Ok(player)
     }
 
@@ -63,6 +63,9 @@ impl Player {
                 RPCMessageType::SetPlayerInfo => {
                     let data: SetPlayerInfoReq = serde_json::from_slice(&rpc_data.Data)?;
                     self.account = data.account;
+
+                    // 添加玩家
+                    self.data_manager.lock().await.players.insert(self.account.clone(), self.clone());
                 }
                 _ => {}
             }
@@ -113,7 +116,7 @@ impl Player {
                         buf.put_u16(rpc_data.MsgType.to_u16());
                         buf.put_slice(&data_str);
                         println!("send data{:?}, len = {}", &buf, &buf.len());
-                        tx.send(buf).unwrap();
+                        let _ = tx.send(buf);
                     }
                     return;
                 }
